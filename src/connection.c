@@ -16,6 +16,11 @@ connection_t *connection_create(int fd) {
     c->write_len = 0;
     c->write_off = 0;
 
+    // Initializing file tracking state
+    c->file_fd = -1;
+    c->file_size = 0;
+    c->file_offset = 0;
+
     c->state = CONN_READING;
     c->last_active = time(NULL);
 
@@ -26,6 +31,10 @@ void connection_destroy(connection_t *c) {
     if (!c) return;
     if (c->read_buf) free(c->read_buf);
     if (c->write_buf) free(c->write_buf);
+    
+    //Preventing file descriptor leaks
+    if (c->file_fd >= 0) close(c->file_fd);
+    
     free(c);
 }
 
@@ -46,7 +55,6 @@ void connection_consume(connection_t *c, size_t n) {
     if (n >= c->read_len) {
         c->read_len = 0;
     } else {
-        // memmove safely handles overlapping memory regions
         memmove(c->read_buf, c->read_buf + n, c->read_len - n);
         c->read_len -= n;
     }

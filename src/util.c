@@ -3,6 +3,7 @@
 #include <string.h>
 #include <limits.h>
 #include <stdio.h>
+#include<time.h>
 
 #ifndef PATH_MAX
 #define PATH_MAX 4096
@@ -15,6 +16,17 @@ static int hex_to_int(char c) {
     return 0;
 }
 
+void log_request(const char *client_ip, const char *method, const char *path, int status) {
+    FILE *f = fopen("server.log", "a");
+    if (!f) return;
+    
+    time_t now = time(NULL);
+    char *ts = ctime(&now);
+    ts[strlen(ts) - 1] = '\0'; // Remove newline
+
+    fprintf(f, "[%s] %s %s %s %d\n", ts, client_ip, method, path, status);
+    fclose(f);
+}
 // Converts encoded characters like %20 back into standard bytes
 void url_decode(const char *src, char *dest) {
     while (*src) {
