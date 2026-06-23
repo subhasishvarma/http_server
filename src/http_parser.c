@@ -4,7 +4,7 @@
 #include <string.h>
 #include <ctype.h>
 
-// Find "\r\n\r\n" — end of headers. Returns offset of byte AFTER it, or -1.
+// Finding "\r\n\r\n" — end of headers
 static long find_header_end(const char *buf, size_t len) {
     for (size_t i = 0; i + 3 < len; i++) {
         if (buf[i]=='\r' && buf[i+1]=='\n' && buf[i+2]=='\r' && buf[i+3]=='\n')
@@ -18,8 +18,8 @@ static char *next_line(char **cursor, char *end) {
     if (start >= end) return NULL;
     char *p = start;
     while (p < end - 1 && !(p[0]=='\r' && p[1]=='\n')) p++;
-    *p = '\0';            // terminate this line
-    *cursor = p + 2;      // skip CRLF
+    *p = '\0';            
+    *cursor = p + 2;      
     return start;
 }
 
@@ -28,9 +28,8 @@ static void to_lower(char *s) { for (; *s; s++) *s = tolower((unsigned char)*s);
 int parse_http_request(const char *buf, size_t buf_len,
                         http_request_t *req, size_t *consumed) {
     long header_end = find_header_end(buf, buf_len);
-    if (header_end < 0) return 0;  // need more bytes
+    if (header_end < 0) return 0;  
 
-    // Work on a mutable copy of the header section only
     size_t hdr_len = (size_t)header_end;
     char *copy = malloc(hdr_len + 1);
     memcpy(copy, buf, hdr_len);
@@ -43,7 +42,7 @@ int parse_http_request(const char *buf, size_t buf_len,
     if (!request_line) { free(copy); return -1; }
 
     char method[16], target[1024], version[16];
-    // Security note: field width limits (%15s, %1023s) prevent buffer overflows
+    
     if (sscanf(request_line, "%15s %1023s %15s", method, target, version) != 3) {
         free(copy); return -1;
     }
@@ -68,11 +67,11 @@ int parse_http_request(const char *buf, size_t buf_len,
     char *line;
     while ((line = next_line(&cursor, end)) != NULL && *line != '\0') {
         char *colon = strchr(line, ':');
-        if (!colon) { free(copy); return -1; }   // malformed header
+        if (!colon) { free(copy); return -1; }   
         *colon = '\0';
         char *name = line;
         char *value = colon + 1;
-        while (*value == ' ') value++;           // skip leading space
+        while (*value == ' ') value++;           
 
         if (req->header_count < MAX_HEADERS) {
             strncpy(req->headers[req->header_count].name, name, 127);
@@ -97,14 +96,11 @@ int parse_http_request(const char *buf, size_t buf_len,
     }
     free(copy);
 
-    // Spec violation: Content-Length and Transfer-Encoding are mutually exclusive
     if (content_length >= 0 && chunked) return -1;  
-
-    // Determine keep-alive default based on HTTP version
     req->keep_alive = (strcmp(req->version, "HTTP/1.0") != 0) && !connection_close;
 
     size_t body_len = content_length > 0 ? (size_t)content_length : 0;
-    if (buf_len < (size_t)header_end + body_len) return 0;  // Body hasn't fully arrived
+    if (buf_len < (size_t)header_end + body_len) return 0;  
 
     req->body = (char *)(buf + header_end);
     req->body_len = body_len;

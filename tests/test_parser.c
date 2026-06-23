@@ -26,7 +26,7 @@ int main() {
         printf("Keep-Alive (0=close, 1=keep-alive): %d\n", req.keep_alive);
         printf("Body length: %zu\n", req.body_len);
         
-        // We use %.*s to print exactly body_len bytes, since req.body isn't null-terminated
+        // Using %.*s to print exactly body_len bytes, since req.body isn't null-terminated
         printf("Body: %.*s\n", (int)req.body_len, req.body);
         printf("Bytes consumed from buffer: %zu\n", consumed);
     } else if (result == 0) {

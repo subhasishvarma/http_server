@@ -17,7 +17,7 @@ typedef struct {
     size_t read_cap;
 
     char *write_buf;     
-    size_t write_len; // FIXED: size_t, not size_len_t
+    size_t write_len;
     size_t write_off;
 
     int file_fd;         

@@ -4,7 +4,7 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <fcntl.h>
-#include <sys/sendfile.h> // Required for zero-copy file transfers on Linux
+#include <sys/sendfile.h> 
 
 const char *mime_type_for(const char *path) {
     const char *ext = strrchr(path, '.');
@@ -24,7 +24,6 @@ void send_status_response(int fd, int code, const char *reason,
     char header[512];
     size_t body_len = body ? strlen(body) : 0;
     
-    // snprintf is safe and prevents buffer overflows when building strings
     int n = snprintf(header, sizeof(header),
         "HTTP/1.1 %d %s\r\n"
         "Content-Length: %zu\r\n"
@@ -41,7 +40,7 @@ void send_file_response(int fd, const char *filepath, int keep_alive) {
     struct stat st;
     int file_fd = open(filepath, O_RDONLY);
     
-    // Check if file exists, can be stat-ed, and is NOT a directory
+    // Check if file exists
     if (file_fd < 0 || fstat(file_fd, &st) < 0 || S_ISDIR(st.st_mode)) {
         if (file_fd >= 0) close(file_fd);
         send_status_response(fd, 404, "Not Found", "404 Not Found", keep_alive);
@@ -59,7 +58,6 @@ void send_file_response(int fd, const char *filepath, int keep_alive) {
         
     write(fd, header, n);
 
-    // sendfile() provides zero-copy transfer directly inside the kernel
     off_t offset = 0;
     ssize_t sent;
     while (offset < st.st_size) {

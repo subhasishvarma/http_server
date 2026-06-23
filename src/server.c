@@ -67,7 +67,7 @@ int handle_readable(connection_t *c) {
     int parse_status = parse_http_request(c->read_buf, c->read_len, &req, &consumed);
 
     if (parse_status == 1) {
-        // --- 1. Method Filtering (405 Check) ---
+        // 405 Check
         if (strcmp(req.method, "GET") != 0 && strcmp(req.method, "HEAD") != 0) {
             const char *body = "405 Method Not Allowed";
             char header[512];
@@ -84,7 +84,7 @@ int handle_readable(connection_t *c) {
             return 0;
         }
 
-        // --- 2. Path Resolution & File Serving ---
+        // Path Resolution & File Serving
         char decoded_path[1024], safe_path[1024], header[1024];
         url_decode(req.path, decoded_path);
         if (strcmp(decoded_path, "/") == 0) strcpy(decoded_path, "/index.html");
@@ -115,7 +115,7 @@ int handle_readable(connection_t *c) {
                 strlen(body), req.keep_alive ? "keep-alive" : "close", body);
         }
 
-        // --- 3. Queue Response & Log ---
+        // Queue Response & Log
         c->write_buf = realloc(c->write_buf, c->write_len + header_len);
         memcpy(c->write_buf + c->write_len, header, header_len);
         c->write_len += header_len;
@@ -126,7 +126,7 @@ int handle_readable(connection_t *c) {
         if (!req.keep_alive) c->state = CONN_CLOSING; 
         
     } else if (parse_status == -1) {
-        return 1; // Malformed data
+        return 1;
     }
     
     return 0; 
@@ -135,50 +135,38 @@ int handle_readable(connection_t *c) {
 int handle_writable(connection_t *c) {
     c->last_active = time(NULL);
 
-    // Phase 1: Flush any pending HTTP headers (or error messages)
+    // Flush any pending HTTP headers 
     if (c->write_off < c->write_len) {
         ssize_t n = write(c->fd, c->write_buf + c->write_off, c->write_len - c->write_off);
         
         if (n < 0) {
             if (errno == EAGAIN || errno == EWOULDBLOCK) return 0;
-            return 1; // Real error, kill connection
+            return 1; 
         }
-        
         c->write_off += n;
-
-        // Once headers are flushed, check if we need to close
         if (c->write_off == c->write_len) {
             free(c->write_buf);
             c->write_buf = NULL;
             c->write_len = 0;
             c->write_off = 0;
-            
-            // IF we were sending an error (like 404) or a non-keep-alive request, 
-            // and there is no file to stream, we are finished.
             if (c->file_fd < 0 && c->state == CONN_CLOSING) return 1;
         }
         return 0; 
     }
 
-    // Phase 2: Stream the actual file if it was opened (200 OK case)
+    // Stream the actual file if it was opened
     if (c->file_fd >= 0 && c->file_offset < c->file_size) {
         ssize_t sent = sendfile(c->fd, c->file_fd, &c->file_offset, c->file_size - c->file_offset);
-        
         if (sent < 0) {
             if (errno == EAGAIN || errno == EWOULDBLOCK) return 0;
             return 1; 
         }
-
-        // Did we finish sending the whole file?
         if (c->file_offset >= c->file_size) {
             close(c->file_fd);
             c->file_fd = -1;
-            
-            // NOW we can safely close if not keep-alive
             if (c->state == CONN_CLOSING) return 1;
         }
     }
-
     return 0; 
 }
 

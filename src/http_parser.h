@@ -11,21 +11,21 @@ typedef struct {
 } http_header_t;
 
 typedef struct {
-    char method[16];        // "GET", "POST", "HEAD", ...
-    char path[1024];        // "/index.html" (raw, before decoding)
+    char method[16];        // for "GET", "POST", "HEAD", ...methonds
+    char path[1024];        // for "/index.html" (raw, before decoding)
     char query[1024];       // part after '?', if any
     char version[16];       // "HTTP/1.1"
     http_header_t headers[MAX_HEADERS];
     int header_count;
-    char *body;             // pointer into connection buffer
+    char *body;             
     size_t body_len;
-    int keep_alive;         // derived from version + Connection header
+    int keep_alive;        
 } http_request_t;
 
-// Returns:
-//  1  -> a complete request was parsed; *consumed = bytes used from buf
+// It will return :
+//  1  -> a complete request was parsed; 
 //  0  -> incomplete, need more data
-// -1  -> malformed request (caller should respond 400 and close)
+// -1  -> malformed request 
 int parse_http_request(const char *buf, size_t buf_len,
                         http_request_t *req, size_t *consumed);
 
