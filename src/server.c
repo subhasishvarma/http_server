@@ -4,6 +4,9 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>
+#include "http_parser.h"
+#include "response.h"
+#include "util.h"
 
 #define PORT 8080
 #define BACKLOG 128
@@ -37,26 +40,51 @@ int create_listening_socket(int port) {
 int main() {
     int listen_fd = create_listening_socket(PORT);
 
+    // Grab the absolute path to your www/ directory
+    char www_root[1024];
+    getcwd(www_root, sizeof(www_root));
+    strncat(www_root, "/www", sizeof(www_root) - strlen(www_root) - 1);
+
     while (1) {
         struct sockaddr_in client_addr;
         socklen_t client_len = sizeof(client_addr);
-        
-        // Block until a new client connects, returning a new file descriptor
         int client_fd = accept(listen_fd, (struct sockaddr*)&client_addr, &client_len);
         if (client_fd < 0) { perror("accept"); continue; }
 
-        char buf[4096] = {0};
+        char buf[8192] = {0};
         ssize_t n = read(client_fd, buf, sizeof(buf) - 1);
-        if (n > 0) printf("Got %zd bytes:\n%s\n", n, buf);
+        if (n <= 0) { close(client_fd); continue; }
 
-        const char *resp =
-            "HTTP/1.1 200 OK\r\n"
-            "Content-Length: 13\r\n"
-            "Content-Type: text/plain\r\n"
-            "\r\n"
-            "Hello, world!";
-            
-        write(client_fd, resp, strlen(resp));
+        http_request_t req;
+        size_t consumed;
+        int parse_status = parse_http_request(buf, n, &req, &consumed);
+
+        if (parse_status == -1) {
+            send_status_response(client_fd, 400, "Bad Request", "400 Bad Request", 0);
+        } else if (parse_status == 1) {
+            // Only handle GET and HEAD methods for static files
+            if (strcmp(req.method, "GET") != 0 && strcmp(req.method, "HEAD") != 0) {
+                send_status_response(client_fd, 405, "Method Not Allowed", "405 Method Not Allowed", 0);
+            } else {
+                char decoded_path[1024];
+                url_decode(req.path, decoded_path);
+
+                // Default routing: '/' becomes '/index.html'
+                if (strcmp(decoded_path, "/") == 0) {
+                    strcpy(decoded_path, "/index.html");
+                }
+
+                char safe_path[1024];
+                if (resolve_safe_path(www_root, decoded_path, safe_path, sizeof(safe_path)) < 0) {
+                    send_status_response(client_fd, 404, "Not Found", "404 Not Found", 0);
+                } else {
+                    printf("Serving file: %s\n", safe_path);
+                    send_file_response(client_fd, safe_path, 0); // 0 means close connection (we haven't built keep-alive yet)
+                }
+            }
+        }
+        
+        // In this blocking phase, we close the socket after one response
         close(client_fd);
     }
     close(listen_fd);
